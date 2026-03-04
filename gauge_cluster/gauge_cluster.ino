@@ -31,10 +31,9 @@
 
 TFT_eSPI tft = TFT_eSPI();  // Single TFT instance for all displays
 
-// One sprite per display for flicker-free updates
-TFT_eSprite fuelSprite = TFT_eSprite(&tft);
-TFT_eSprite oilSprite = TFT_eSprite(&tft);
-TFT_eSprite waterSprite = TFT_eSprite(&tft);
+// Single shared sprite - reused for each gauge (saves RAM)
+// 240x240x16bit = 115,200 bytes (RP2040 has 264KB total)
+TFT_eSprite gauge = TFT_eSprite(&tft);
 
 // ============================================================================
 // DISPLAY CONFIGURATION
@@ -243,20 +242,21 @@ void drawThermometerWaterIcon(TFT_eSprite &spr, int cx, int cy, int w, int h,
   int mercuryTop = thermBotY - mercuryH;
   spr.fillRect(thermX - thermW/2 + 2, mercuryTop, thermW - 4, mercuryH, fg);
   
+  // 3 horizontal lines on right side of thermometer
   int lineLen = 5;
   int lineSpacing = (int)(thermH * 0.2f);
-  int lineStartX = thermX - thermW/2 - 1;
+  int lineStartX = thermX + thermW/2 + 1;  // Right side of thermometer
   
   for (int i = 0; i < 3; i++) {
     int lineY = thermTopY + (int)(thermH * 0.25f) + i * lineSpacing;
-    spr.drawLine(lineStartX - lineLen, lineY, lineStartX, lineY, fg);
+    spr.drawLine(lineStartX, lineY, lineStartX + lineLen, lineY, fg);
   }
   
   int waveY1 = bulbY + bulbR + 3;
   int waveY2 = waveY1 + 5;
   int waveAmplitude = 2;
-  int waveStartX = cx - (int)(w * 0.45f);
-  int waveEndX = cx + (int)(w * 0.45f);
+  int waveStartX = cx - (int)(w * 0.75f);  // 2/3 wider (was 0.45)
+  int waveEndX = cx + (int)(w * 0.75f);    // 2/3 wider (was 0.45)
   
   for (int x = waveStartX; x < thermX - bulbR - 2; x++) {
     float phase = (x - waveStartX) * 0.4f;
@@ -446,84 +446,43 @@ void renderOilGauge(TFT_eSprite &spr, float value, int digital) {
 }
 
 // ============================================================================
-// WATER TEMPERATURE GAUGE RENDERING (custom tick pattern)
+// WATER TEMPERATURE GAUGE RENDERING
 // ============================================================================
 
 void drawWaterDialBase(TFT_eSprite &spr) {
   spr.fillSprite(COL_BG);
 
-  // Custom tick pattern: clustered ticks at ends with connecting arc
-  float tickSpacingPx = 4.0f;
-  float tickSpacingDeg = (tickSpacingPx / (float)R_TICK1) * (180.0f / 3.14159f);
+  const int majorTicks = 3;
+  const int intermediateTicks = 2;
+  const int totalTicks = majorTicks + (intermediateTicks * 2);
 
-  // Draw major ticks (start, center, end)
-  float majorAngles[] = { ANGLE_MIN, (ANGLE_MIN + ANGLE_MAX) / 2.0f, ANGLE_MAX };
-  
-  for (int m = 0; m < 3; m++) {
-    float ang = majorAngles[m];
-    int x1, y1, x3, y3;
+  for (int i = 0; i < totalTicks; i++) {
+    float t = (float)i / (float)(totalTicks - 1);
+    float ang = ANGLE_MIN + t * (ANGLE_MAX - ANGLE_MIN);
+
+    int x1, y1, x2, y2;
     polarPoint(CX, CY, R_TICK1, ang, x1, y1);
-    polarPoint(CX, CY, R_TICK2 - 6, ang, x3, y3);
+    polarPoint(CX, CY, R_TICK2, ang, x2, y2);
 
-    float a = deg2rad(ang);
-    float nx = -sinf(a);
-    float ny = cosf(a);
+    bool isMajorTick = (i == 0) || (i == totalTicks - 1) || (i == totalTicks / 2);
 
-    int thickness = 8;
-    for (int tt = -thickness/2; tt <= thickness/2; tt++) {
-      int ox = nx * tt;
-      int oy = ny * tt;
-      spr.drawLine(x1 + ox, y1 + oy, x3 + ox, y3 + oy, COL_TICKS);
+    if (isMajorTick) {
+      int x3, y3;
+      polarPoint(CX, CY, R_TICK2 - 6, ang, x3, y3);
+
+      float a = deg2rad(ang);
+      float nx = -sinf(a);
+      float ny = cosf(a);
+
+      int thickness = 8;
+      for (int tt = -thickness/2; tt <= thickness/2; tt++) {
+        int ox = nx * tt;
+        int oy = ny * tt;
+        spr.drawLine(x1 + ox, y1 + oy, x3 + ox, y3 + oy, COL_TICKS);
+      }
+    } else {
+      spr.drawLine(x1, y1, x2, y2, COL_TICKS);
     }
-  }
-
-  // Clustered ticks near start
-  float startClusterAngles[] = { ANGLE_MIN + tickSpacingDeg, ANGLE_MIN + tickSpacingDeg * 2 };
-  for (int i = 0; i < 2; i++) {
-    float ang = startClusterAngles[i];
-    int x1, y1, x2, y2;
-    polarPoint(CX, CY, R_TICK1, ang, x1, y1);
-    polarPoint(CX, CY, R_TICK2, ang, x2, y2);
-    spr.drawLine(x1, y1, x2, y2, COL_TICKS);
-  }
-
-  // Clustered ticks near end
-  float endClusterAngles[] = { ANGLE_MAX - tickSpacingDeg, ANGLE_MAX - tickSpacingDeg * 2 };
-  for (int i = 0; i < 2; i++) {
-    float ang = endClusterAngles[i];
-    int x1, y1, x2, y2;
-    polarPoint(CX, CY, R_TICK1, ang, x1, y1);
-    polarPoint(CX, CY, R_TICK2, ang, x2, y2);
-    spr.drawLine(x1, y1, x2, y2, COL_TICKS);
-  }
-
-  // Arc connecting start cluster
-  int arcSteps = 20;
-  float arcStartAng = ANGLE_MIN;
-  float arcEndAng = ANGLE_MIN + tickSpacingDeg * 2;
-  
-  for (int s = 0; s < arcSteps; s++) {
-    float t = (float)s / (float)(arcSteps - 1);
-    float ang = arcStartAng + t * (arcEndAng - arcStartAng);
-    int x, y, x2, y2;
-    polarPoint(CX, CY, R_TICK1, ang, x, y);
-    polarPoint(CX, CY, R_TICK1 - 1, ang, x2, y2);
-    spr.drawPixel(x, y, COL_TICKS);
-    spr.drawPixel(x2, y2, COL_TICKS);
-  }
-
-  // Arc connecting end cluster
-  float arcStartAng2 = ANGLE_MAX - tickSpacingDeg * 2;
-  float arcEndAng2 = ANGLE_MAX;
-  
-  for (int s = 0; s < arcSteps; s++) {
-    float t = (float)s / (float)(arcSteps - 1);
-    float ang = arcStartAng2 + t * (arcEndAng2 - arcStartAng2);
-    int x, y, x2, y2;
-    polarPoint(CX, CY, R_TICK1, ang, x, y);
-    polarPoint(CX, CY, R_TICK1 - 1, ang, x2, y2);
-    spr.drawPixel(x, y, COL_TICKS);
-    spr.drawPixel(x2, y2, COL_TICKS);
   }
 
   drawThermometerWaterIcon(spr, CX, CY - 55, 24, 38, COL_TEXT, COL_DIAL);
@@ -560,32 +519,25 @@ void setup() {
   deselectAllDisplays();
   
   // Initialize all displays simultaneously
-  // (Required for proper init sequence - all displays receive same commands)
   selectAllDisplays();
   tft.init();
   tft.setRotation(0);
   tft.fillScreen(COL_BG);
   deselectAllDisplays();
   
-  // Create sprites for each gauge
-  fuelSprite.setColorDepth(16);
-  fuelSprite.createSprite(SCREEN_W, SCREEN_H);
+  // Create single shared sprite (reused for all gauges)
+  gauge.setColorDepth(16);
+  gauge.createSprite(SCREEN_W, SCREEN_H);
   
-  oilSprite.setColorDepth(16);
-  oilSprite.createSprite(SCREEN_W, SCREEN_H);
+  // Initial render - render and push each gauge sequentially
+  renderFuelGauge(gauge, fuelLevel, boostValue);
+  pushSpriteToDisplay(CS_FUEL, gauge);
   
-  waterSprite.setColorDepth(16);
-  waterSprite.createSprite(SCREEN_W, SCREEN_H);
+  renderOilGauge(gauge, oilPressure, afrValue);
+  pushSpriteToDisplay(CS_OIL, gauge);
   
-  // Initial render of all gauges
-  renderFuelGauge(fuelSprite, fuelLevel, boostValue);
-  renderOilGauge(oilSprite, oilPressure, afrValue);
-  renderWaterGauge(waterSprite, waterTemp, oilTempValue);
-  
-  // Push sprites to displays
-  pushSpriteToDisplay(CS_FUEL, fuelSprite);
-  pushSpriteToDisplay(CS_OIL, oilSprite);
-  pushSpriteToDisplay(CS_WATER, waterSprite);
+  renderWaterGauge(gauge, waterTemp, oilTempValue);
+  pushSpriteToDisplay(CS_WATER, gauge);
 }
 
 // ============================================================================
@@ -595,10 +547,12 @@ void setup() {
 void loop() {
   static uint32_t lastUpdate = 0;
   
-  if (millis() - lastUpdate > 40) {  // ~25 FPS per gauge
+  if (millis() - lastUpdate > 40) {  // ~25 FPS total (~8 FPS per gauge)
     lastUpdate = millis();
     
-    // ---- Update fuel gauge values (demo animation) ----
+    // ---- Update demo values ----
+    
+    // Fuel gauge
     static float fuelDir = 0.006f;
     fuelLevel += fuelDir;
     if (fuelLevel >= 1.0f) { fuelLevel = 1.0f; fuelDir = -fuelDir; }
@@ -609,7 +563,7 @@ void loop() {
     if (boostValue > -5) boostDir = -1;
     if (boostValue < -21) boostDir = 1;
     
-    // ---- Update oil gauge values ----
+    // Oil gauge
     static float oilDir = 0.008f;
     oilPressure += oilDir;
     if (oilPressure >= 1.0f) { oilPressure = 1.0f; oilDir = -oilDir; }
@@ -620,7 +574,7 @@ void loop() {
     if (afrValue > 18) afrDir = -1;
     if (afrValue < 10) afrDir = 1;
     
-    // ---- Update water gauge values ----
+    // Water gauge
     static float waterDir = 0.005f;
     waterTemp += waterDir;
     if (waterTemp >= 1.0f) { waterTemp = 1.0f; waterDir = -waterDir; }
@@ -631,14 +585,14 @@ void loop() {
     if (oilTempValue > 220) oilTempDir = -1;
     if (oilTempValue < 180) oilTempDir = 1;
     
-    // ---- Render all gauges to sprites ----
-    renderFuelGauge(fuelSprite, fuelLevel, boostValue);
-    renderOilGauge(oilSprite, oilPressure, afrValue);
-    renderWaterGauge(waterSprite, waterTemp, oilTempValue);
+    // ---- Render and push each gauge sequentially (reusing single sprite) ----
+    renderFuelGauge(gauge, fuelLevel, boostValue);
+    pushSpriteToDisplay(CS_FUEL, gauge);
     
-    // ---- Push sprites to displays ----
-    pushSpriteToDisplay(CS_FUEL, fuelSprite);
-    pushSpriteToDisplay(CS_OIL, oilSprite);
-    pushSpriteToDisplay(CS_WATER, waterSprite);
+    renderOilGauge(gauge, oilPressure, afrValue);
+    pushSpriteToDisplay(CS_OIL, gauge);
+    
+    renderWaterGauge(gauge, waterTemp, oilTempValue);
+    pushSpriteToDisplay(CS_WATER, gauge);
   }
 }
