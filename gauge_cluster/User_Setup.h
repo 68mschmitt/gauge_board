@@ -41,9 +41,12 @@
 // Do NOT enable PIO SPI - it doesn't support manual CS switching
 // #define RP2040_PIO_SPI
 
-// SPI frequency (40MHz is reliable, 62.5MHz may work)
-#define SPI_FREQUENCY       40000000
+// SPI frequency - 62.5MHz for faster transfers
+#define SPI_FREQUENCY       62500000
 #define SPI_READ_FREQUENCY  20000000
+
+// Enable DMA for non-blocking SPI transfers
+#define RP2040_DMA
 
 // ============================================================================
 // Font Configuration

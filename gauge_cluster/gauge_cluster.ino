@@ -551,58 +551,65 @@ void setup() {
 }
 
 // ============================================================================
-// MAIN LOOP
+// MAIN LOOP - Runs as fast as possible with DMA
 // ============================================================================
 
+// Frame timing for consistent animation speed (independent of render speed)
+static uint32_t lastFrameTime = 0;
+static uint32_t frameCount = 0;
+
 void loop() {
-  static uint32_t lastUpdate = 0;
+  uint32_t now = millis();
+  uint32_t deltaMs = now - lastFrameTime;
+  lastFrameTime = now;
   
-  if (millis() - lastUpdate > 40) {  // ~25 FPS total (~8 FPS per gauge)
-    lastUpdate = millis();
-    
-    // ---- Update demo values ----
-    
-    // Fuel gauge
-    static float fuelDir = 0.006f;
-    fuelLevel += fuelDir;
-    if (fuelLevel >= 1.0f) { fuelLevel = 1.0f; fuelDir = -fuelDir; }
-    if (fuelLevel <= 0.0f) { fuelLevel = 0.0f; fuelDir = -fuelDir; }
-    
-    static int boostDir = 1;
-    boostValue += boostDir;
-    if (boostValue > 30) boostDir = -1;   // Range: -50 to 30
-    if (boostValue < -50) boostDir = 1;
-    
-    // Oil gauge
-    static float oilDir = 0.008f;
-    oilPressure += oilDir;
-    if (oilPressure >= 1.0f) { oilPressure = 1.0f; oilDir = -oilDir; }
-    if (oilPressure <= 0.0f) { oilPressure = 0.0f; oilDir = -oilDir; }
-    
-    static float afrDir = 0.1f;
-    afrValue += afrDir;
-    if (afrValue > 20.0f) afrDir = -0.1f;  // Range: 0.0 to 20.0
-    if (afrValue < 0.0f) afrDir = 0.1f;
-    
-    // Water gauge
-    static float waterDir = 0.005f;
-    waterTemp += waterDir;
-    if (waterTemp >= 1.0f) { waterTemp = 1.0f; waterDir = -waterDir; }
-    if (waterTemp <= 0.0f) { waterTemp = 0.0f; waterDir = -waterDir; }
-    
-    static int oilTempDir = 2;
-    oilTempValue += oilTempDir;
-    if (oilTempValue > 250) oilTempDir = -2;  // Range: 50 to 250
-    if (oilTempValue < 50) oilTempDir = 2;
-    
-    // ---- Render and push each gauge sequentially (reusing single sprite) ----
-    renderFuelGauge(gauge, fuelLevel, boostValue);
-    pushSpriteToDisplay(CS_FUEL, gauge);
-    
-    renderOilGauge(gauge, oilPressure, afrValue);
-    pushSpriteToDisplay(CS_OIL, gauge);
-    
-    renderWaterGauge(gauge, waterTemp, oilTempValue);
-    pushSpriteToDisplay(CS_WATER, gauge);
-  }
+  // Scale animation by time delta for consistent speed regardless of FPS
+  float deltaScale = deltaMs / 40.0f;  // Normalized to ~25 FPS baseline
+  
+  // ---- Update demo values (time-scaled for consistent animation) ----
+  
+  // Fuel gauge
+  static float fuelDir = 1.0f;
+  fuelLevel += 0.006f * fuelDir * deltaScale;
+  if (fuelLevel >= 1.0f) { fuelLevel = 1.0f; fuelDir = -1.0f; }
+  if (fuelLevel <= 0.0f) { fuelLevel = 0.0f; fuelDir = 1.0f; }
+  
+  static float boostDir = 1.0f;
+  boostValue += (int)(1.0f * boostDir * deltaScale);
+  if (boostValue > 30) boostDir = -1.0f;
+  if (boostValue < -50) boostDir = 1.0f;
+  
+  // Oil gauge
+  static float oilDir = 1.0f;
+  oilPressure += 0.008f * oilDir * deltaScale;
+  if (oilPressure >= 1.0f) { oilPressure = 1.0f; oilDir = -1.0f; }
+  if (oilPressure <= 0.0f) { oilPressure = 0.0f; oilDir = 1.0f; }
+  
+  static float afrDir = 1.0f;
+  afrValue += 0.1f * afrDir * deltaScale;
+  if (afrValue > 20.0f) afrDir = -1.0f;
+  if (afrValue < 0.0f) afrDir = 1.0f;
+  
+  // Water gauge
+  static float waterDir = 1.0f;
+  waterTemp += 0.005f * waterDir * deltaScale;
+  if (waterTemp >= 1.0f) { waterTemp = 1.0f; waterDir = -1.0f; }
+  if (waterTemp <= 0.0f) { waterTemp = 0.0f; waterDir = 1.0f; }
+  
+  static float oilTempDir = 1.0f;
+  oilTempValue += (int)(2.0f * oilTempDir * deltaScale);
+  if (oilTempValue > 250) oilTempDir = -1.0f;
+  if (oilTempValue < 50) oilTempDir = 1.0f;
+  
+  // ---- Render and push each gauge (no delay - max speed) ----
+  renderFuelGauge(gauge, fuelLevel, boostValue);
+  pushSpriteToDisplay(CS_FUEL, gauge);
+  
+  renderOilGauge(gauge, oilPressure, afrValue);
+  pushSpriteToDisplay(CS_OIL, gauge);
+  
+  renderWaterGauge(gauge, waterTemp, oilTempValue);
+  pushSpriteToDisplay(CS_WATER, gauge);
+  
+  frameCount++;
 }
