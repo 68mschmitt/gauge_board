@@ -628,35 +628,39 @@ void loop() {
   float deltaScale = deltaMs / 40.0f;
   
   // ---- Update demo values ----
+  // Needle values change VERY SLOWLY, number values change fast
   
-  // Fuel gauge
+  // Fuel gauge - needle moves very slowly
   static float fuelDir = 1.0f;
-  fuelLevel += 0.006f * fuelDir * deltaScale;
+  fuelLevel += 0.0003f * fuelDir * deltaScale;  // ~50x slower
   if (fuelLevel >= 1.0f) { fuelLevel = 1.0f; fuelDir = -1.0f; }
   if (fuelLevel <= 0.0f) { fuelLevel = 0.0f; fuelDir = 1.0f; }
   
+  // Boost number changes fast
   static float boostDir = 1.0f;
   boostValue += (int)(1.0f * boostDir * deltaScale);
   if (boostValue > 30) boostDir = -1.0f;
   if (boostValue < -50) boostDir = 1.0f;
   
-  // Oil gauge
+  // Oil gauge - needle moves very slowly
   static float oilDir = 1.0f;
-  oilPressure += 0.008f * oilDir * deltaScale;
+  oilPressure += 0.0004f * oilDir * deltaScale;  // ~50x slower
   if (oilPressure >= 1.0f) { oilPressure = 1.0f; oilDir = -1.0f; }
   if (oilPressure <= 0.0f) { oilPressure = 0.0f; oilDir = 1.0f; }
   
+  // AFR number changes fast
   static float afrDir = 1.0f;
   afrValue += 0.1f * afrDir * deltaScale;
   if (afrValue > 20.0f) afrDir = -1.0f;
   if (afrValue < 0.0f) afrDir = 1.0f;
   
-  // Water gauge
+  // Water gauge - needle moves very slowly
   static float waterDir = 1.0f;
-  waterTemp += 0.005f * waterDir * deltaScale;
+  waterTemp += 0.00025f * waterDir * deltaScale;  // ~50x slower
   if (waterTemp >= 1.0f) { waterTemp = 1.0f; waterDir = -1.0f; }
   if (waterTemp <= 0.0f) { waterTemp = 0.0f; waterDir = 1.0f; }
   
+  // Oil temp number changes fast
   static float oilTempDir = 1.0f;
   oilTempValue += (int)(2.0f * oilTempDir * deltaScale);
   if (oilTempValue > 250) oilTempDir = -1.0f;
