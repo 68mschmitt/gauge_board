@@ -63,8 +63,8 @@ static const uint16_t COL_ACCENT = TFT_CYAN;
 GaugeProtocol protocol(GAUGE_ID_WATER);
 
 // Current values
-float needleValue = 0.5f;
-int digitalValue = 200;  // Oil temp in °F
+float needleValue = 0.0f;
+int digitalValue = 0;  // Oil temp in °F
 float prevNeedleValue = -1.0f;
 
 static const float NEEDLE_THRESHOLD = 0.01f;

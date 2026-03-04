@@ -63,8 +63,8 @@ static const uint16_t COL_ACCENT = TFT_CYAN;
 GaugeProtocol protocol(GAUGE_ID_OIL);
 
 // Current values
-float needleValue = 0.5f;
-float digitalValue = 14.7f;  // AFR is float
+float needleValue = 0.0f;
+float digitalValue = 0.0f;  // AFR is float
 float prevNeedleValue = -1.0f;
 
 static const float NEEDLE_THRESHOLD = 0.01f;

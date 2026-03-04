@@ -46,7 +46,7 @@ struct GaugeData {
 class GaugeProtocol {
 public:
   GaugeProtocol(const char* gaugeId) : _gaugeId(gaugeId), _bufferIndex(0) {
-    _data.needleValue = 0.5f;
+    _data.needleValue = 0.0f;
     _data.digitalValue = 0.0f;
     _data.updated = false;
   }

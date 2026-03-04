@@ -63,7 +63,7 @@ static const uint16_t COL_ACCENT = TFT_CYAN;
 GaugeProtocol protocol(GAUGE_ID_FUEL);
 
 // Current values
-float needleValue = 0.5f;
+float needleValue = 0.0f;
 int digitalValue = 0;
 float prevNeedleValue = -1.0f;
 
