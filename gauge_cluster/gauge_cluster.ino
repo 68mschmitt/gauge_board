@@ -73,15 +73,15 @@ static const uint16_t COL_ACCENT  = TFT_CYAN;
 
 // Fuel gauge
 float fuelLevel = 0.5f;      // 0.0..1.0
-int   boostValue = -21;      // Vacuum/boost reading
+int   boostValue = -50;      // Vacuum/boost reading (-50 to 30)
 
 // Oil pressure gauge
 float oilPressure = 0.5f;    // 0.0..1.0
-int   afrValue = 14;         // AFR reading
+float afrValue = 14.0f;      // AFR reading (0.0 to 20.0)
 
 // Water temperature gauge
 float waterTemp = 0.5f;      // 0.0..1.0
-int   oilTempValue = 200;    // Oil temp in °F
+int   oilTempValue = 50;     // Oil temp in °F (50 to 250)
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -329,6 +329,16 @@ void drawDigitalReadout(TFT_eSprite &spr, int value) {
   spr.drawString(buf, CX, CY + 65);
 }
 
+void drawDigitalReadoutFloat(TFT_eSprite &spr, float value) {
+  spr.setTextDatum(MC_DATUM);
+  spr.setTextColor(COL_ACCENT, COL_DIAL);
+  spr.setTextSize(3);
+
+  char buf[12];
+  snprintf(buf, sizeof(buf), "%.1f", value);  // One decimal place
+  spr.drawString(buf, CX, CY + 65);
+}
+
 // ============================================================================
 // FUEL GAUGE RENDERING
 // ============================================================================
@@ -439,10 +449,10 @@ void drawOilDialBase(TFT_eSprite &spr) {
   spr.drawString("AFR", CX, CY + 100);
 }
 
-void renderOilGauge(TFT_eSprite &spr, float value, int digital) {
+void renderOilGauge(TFT_eSprite &spr, float value, float digital) {
   drawOilDialBase(spr);
   drawNeedleCone(spr, value);
-  drawDigitalReadout(spr, digital);
+  drawDigitalReadoutFloat(spr, digital);
 }
 
 // ============================================================================
@@ -560,8 +570,8 @@ void loop() {
     
     static int boostDir = 1;
     boostValue += boostDir;
-    if (boostValue > -5) boostDir = -1;
-    if (boostValue < -21) boostDir = 1;
+    if (boostValue > 30) boostDir = -1;   // Range: -50 to 30
+    if (boostValue < -50) boostDir = 1;
     
     // Oil gauge
     static float oilDir = 0.008f;
@@ -569,10 +579,10 @@ void loop() {
     if (oilPressure >= 1.0f) { oilPressure = 1.0f; oilDir = -oilDir; }
     if (oilPressure <= 0.0f) { oilPressure = 0.0f; oilDir = -oilDir; }
     
-    static int afrDir = 1;
+    static float afrDir = 0.1f;
     afrValue += afrDir;
-    if (afrValue > 18) afrDir = -1;
-    if (afrValue < 10) afrDir = 1;
+    if (afrValue > 20.0f) afrDir = -0.1f;  // Range: 0.0 to 20.0
+    if (afrValue < 0.0f) afrDir = 0.1f;
     
     // Water gauge
     static float waterDir = 0.005f;
@@ -580,10 +590,10 @@ void loop() {
     if (waterTemp >= 1.0f) { waterTemp = 1.0f; waterDir = -waterDir; }
     if (waterTemp <= 0.0f) { waterTemp = 0.0f; waterDir = -waterDir; }
     
-    static int oilTempDir = 1;
+    static int oilTempDir = 2;
     oilTempValue += oilTempDir;
-    if (oilTempValue > 220) oilTempDir = -1;
-    if (oilTempValue < 180) oilTempDir = 1;
+    if (oilTempValue > 250) oilTempDir = -2;  // Range: 50 to 250
+    if (oilTempValue < 50) oilTempDir = 2;
     
     // ---- Render and push each gauge sequentially (reusing single sprite) ----
     renderFuelGauge(gauge, fuelLevel, boostValue);
