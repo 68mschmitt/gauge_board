@@ -31,9 +31,16 @@
 
 TFT_eSPI tft = TFT_eSPI();  // Single TFT instance for all displays
 
-// Single shared sprite - reused for each gauge (saves RAM)
-// 240x240x16bit = 115,200 bytes (RP2040 has 264KB total)
+// Full gauge sprite - for needle updates (115KB)
 TFT_eSprite gauge = TFT_eSprite(&tft);
+
+// Small sprite for digital readout only - for fast number updates (~4KB)
+// Positioned at center bottom of gauge
+static const int READOUT_W = 70;
+static const int READOUT_H = 30;
+static const int READOUT_X = (240 - READOUT_W) / 2;  // Centered
+static const int READOUT_Y = 120 + 65 - READOUT_H/2; // CY + 65 - half height
+TFT_eSprite readout = TFT_eSprite(&tft);
 
 // ============================================================================
 // DISPLAY CONFIGURATION
@@ -335,8 +342,48 @@ void drawDigitalReadoutFloat(TFT_eSprite &spr, float value) {
   spr.setTextSize(3);
 
   char buf[12];
-  snprintf(buf, sizeof(buf), "%.1f", value);  // One decimal place
+  snprintf(buf, sizeof(buf), "%.1f", value);
   spr.drawString(buf, CX, CY + 65);
+}
+
+// ============================================================================
+// FAST READOUT-ONLY UPDATE (small sprite pushed to number region)
+// ============================================================================
+
+void pushReadoutInt(uint8_t cs_pin, int value) {
+  readout.fillSprite(COL_BG);
+  readout.setTextDatum(MC_DATUM);
+  readout.setTextColor(COL_ACCENT, COL_BG);
+  readout.setTextSize(3);
+  
+  char buf[12];
+  snprintf(buf, sizeof(buf), "%d", value);
+  readout.drawString(buf, READOUT_W/2, READOUT_H/2);
+  
+  deselectAllDisplays();
+  digitalWrite(cs_pin, LOW);
+  tft.startWrite();
+  readout.pushSprite(READOUT_X, READOUT_Y);
+  tft.endWrite();
+  digitalWrite(cs_pin, HIGH);
+}
+
+void pushReadoutFloat(uint8_t cs_pin, float value) {
+  readout.fillSprite(COL_BG);
+  readout.setTextDatum(MC_DATUM);
+  readout.setTextColor(COL_ACCENT, COL_BG);
+  readout.setTextSize(3);
+  
+  char buf[12];
+  snprintf(buf, sizeof(buf), "%.1f", value);
+  readout.drawString(buf, READOUT_W/2, READOUT_H/2);
+  
+  deselectAllDisplays();
+  digitalWrite(cs_pin, LOW);
+  tft.startWrite();
+  readout.pushSprite(READOUT_X, READOUT_Y);
+  tft.endWrite();
+  digitalWrite(cs_pin, HIGH);
 }
 
 // ============================================================================
@@ -535,11 +582,15 @@ void setup() {
   tft.fillScreen(COL_BG);
   deselectAllDisplays();
   
-  // Create single shared sprite (reused for all gauges)
+  // Create full gauge sprite (for needle updates)
   gauge.setColorDepth(16);
   gauge.createSprite(SCREEN_W, SCREEN_H);
   
-  // Initial render - render and push each gauge sequentially
+  // Create small readout sprite (for fast number updates)
+  readout.setColorDepth(16);
+  readout.createSprite(READOUT_W, READOUT_H);
+  
+  // Initial full render of all gauges
   renderFuelGauge(gauge, fuelLevel, boostValue);
   pushSpriteToDisplay(CS_FUEL, gauge);
   
@@ -551,10 +602,20 @@ void setup() {
 }
 
 // ============================================================================
-// MAIN LOOP - Runs as fast as possible with DMA
+// MAIN LOOP - Dual update strategy:
+//   - Full gauge redraw: Only when needle moves significantly (every ~100ms)
+//   - Number update: Every frame for low latency
 // ============================================================================
 
-// Frame timing for consistent animation speed (independent of render speed)
+// Track previous needle positions to detect significant movement
+static float prevFuelLevel = -1;
+static float prevOilPressure = -1;
+static float prevWaterTemp = -1;
+
+// Threshold for needle redraw (0.01 = 1% movement)
+static const float NEEDLE_THRESHOLD = 0.01f;
+
+// Timing
 static uint32_t lastFrameTime = 0;
 static uint32_t frameCount = 0;
 
@@ -563,10 +624,10 @@ void loop() {
   uint32_t deltaMs = now - lastFrameTime;
   lastFrameTime = now;
   
-  // Scale animation by time delta for consistent speed regardless of FPS
-  float deltaScale = deltaMs / 40.0f;  // Normalized to ~25 FPS baseline
+  // Scale animation by time delta for consistent speed
+  float deltaScale = deltaMs / 40.0f;
   
-  // ---- Update demo values (time-scaled for consistent animation) ----
+  // ---- Update demo values ----
   
   // Fuel gauge
   static float fuelDir = 1.0f;
@@ -601,15 +662,34 @@ void loop() {
   if (oilTempValue > 250) oilTempDir = -1.0f;
   if (oilTempValue < 50) oilTempDir = 1.0f;
   
-  // ---- Render and push each gauge (no delay - max speed) ----
-  renderFuelGauge(gauge, fuelLevel, boostValue);
-  pushSpriteToDisplay(CS_FUEL, gauge);
+  // ---- FUEL GAUGE ----
+  if (fabsf(fuelLevel - prevFuelLevel) > NEEDLE_THRESHOLD) {
+    // Needle moved significantly - full redraw
+    renderFuelGauge(gauge, fuelLevel, boostValue);
+    pushSpriteToDisplay(CS_FUEL, gauge);
+    prevFuelLevel = fuelLevel;
+  } else {
+    // Just update the number (fast)
+    pushReadoutInt(CS_FUEL, boostValue);
+  }
   
-  renderOilGauge(gauge, oilPressure, afrValue);
-  pushSpriteToDisplay(CS_OIL, gauge);
+  // ---- OIL PRESSURE GAUGE ----
+  if (fabsf(oilPressure - prevOilPressure) > NEEDLE_THRESHOLD) {
+    renderOilGauge(gauge, oilPressure, afrValue);
+    pushSpriteToDisplay(CS_OIL, gauge);
+    prevOilPressure = oilPressure;
+  } else {
+    pushReadoutFloat(CS_OIL, afrValue);
+  }
   
-  renderWaterGauge(gauge, waterTemp, oilTempValue);
-  pushSpriteToDisplay(CS_WATER, gauge);
+  // ---- WATER TEMP GAUGE ----
+  if (fabsf(waterTemp - prevWaterTemp) > NEEDLE_THRESHOLD) {
+    renderWaterGauge(gauge, waterTemp, oilTempValue);
+    pushSpriteToDisplay(CS_WATER, gauge);
+    prevWaterTemp = waterTemp;
+  } else {
+    pushReadoutInt(CS_WATER, oilTempValue);
+  }
   
   frameCount++;
 }
