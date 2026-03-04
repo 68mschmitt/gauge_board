@@ -17,6 +17,7 @@
 #include <TFT_eSPI.h>
 #include <SPI.h>
 #include "gauge_protocol.h"
+#include "startup_animation.h"
 
 // ============================================================================
 // DISPLAY & SPRITE
@@ -275,6 +276,10 @@ void setup() {
 
   readout.setColorDepth(16);
   readout.createSprite(READOUT_W, READOUT_H);
+
+  // Epic startup animation
+  StartupAnimation startup(tft, gauge, SCREEN_W, SCREEN_H);
+  startup.play();
 
   renderFullGauge();
 
