@@ -8,8 +8,11 @@
  * Hardware:
  *   - ESP32-S3 DevKit
  *   - GC9A01 240x240 display (SPI)
- *   - UART RX on GPIO18 for data input
+ *   - UART RX on GPIO18 for data input (or USB with USE_USB_SERIAL)
  */
+
+// Uncomment to receive data via USB instead of GPIO18
+#define USE_USB_SERIAL
 
 #include <TFT_eSPI.h>
 #include <SPI.h>
@@ -276,7 +279,8 @@ void setup() {
   renderFullGauge();
 
   Serial.println("Oil Pressure Gauge Ready");
-  Serial.println("Expecting: OIL:<needle>:<afr>");
+  Serial.println("Format: OIL:<press_min>:<press_max>:<press_actual>:<afr_min>:<afr_max>:<afr_actual>");
+  Serial.println("Example: OIL:0:80:45:10:18:14.7");
 }
 
 // ============================================================================
@@ -284,6 +288,9 @@ void setup() {
 // ============================================================================
 
 void loop() {
+  static unsigned long lastFpsTime = 0;
+  static int frameCount = 0;
+  
   protocol.update();
 
   if (protocol.hasUpdate()) {
@@ -294,7 +301,15 @@ void loop() {
   if (fabsf(needleValue - prevNeedleValue) > NEEDLE_THRESHOLD) {
     renderFullGauge();
     prevNeedleValue = needleValue;
+    frameCount++;
   } else {
     pushReadoutOnly();
+  }
+  
+  // Print FPS every second
+  if (millis() - lastFpsTime >= 1000) {
+    Serial.printf("FPS: %d\n", frameCount);
+    frameCount = 0;
+    lastFpsTime = millis();
   }
 }

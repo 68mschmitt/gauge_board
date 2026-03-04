@@ -8,8 +8,11 @@
  * Hardware:
  *   - ESP32-S3 DevKit
  *   - GC9A01 240x240 display (SPI)
- *   - UART RX on GPIO18 for data input
+ *   - UART RX on GPIO18 for data input (or USB with USE_USB_SERIAL)
  */
+
+// Uncomment to receive data via USB instead of GPIO18
+#define USE_USB_SERIAL
 
 #include <TFT_eSPI.h>
 #include <SPI.h>
@@ -256,7 +259,8 @@ void setup() {
   renderFullGauge();
 
   Serial.println("Fuel Gauge Ready");
-  Serial.println("Expecting: FUEL:<needle>:<boost>");
+  Serial.println("Format: FUEL:<percent>:<boost_min>:<boost_max>:<boost_actual>");
+  Serial.println("Example: FUEL:75:-20:20:5");
 }
 
 // ============================================================================
@@ -264,6 +268,9 @@ void setup() {
 // ============================================================================
 
 void loop() {
+  static unsigned long lastFpsTime = 0;
+  static int frameCount = 0;
+  
   // Process incoming UART data
   protocol.update();
 
@@ -278,8 +285,16 @@ void loop() {
     // Needle moved significantly - full redraw
     renderFullGauge();
     prevNeedleValue = needleValue;
+    frameCount++;
   } else {
     // Just update the number (fast)
     pushReadoutOnly();
+  }
+  
+  // Print FPS every second
+  if (millis() - lastFpsTime >= 1000) {
+    Serial.printf("FPS: %d\n", frameCount);
+    frameCount = 0;
+    lastFpsTime = millis();
   }
 }

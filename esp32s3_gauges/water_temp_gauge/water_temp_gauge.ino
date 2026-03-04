@@ -8,8 +8,11 @@
  * Hardware:
  *   - ESP32-S3 DevKit
  *   - GC9A01 240x240 display (SPI)
- *   - UART RX on GPIO18 for data input
+ *   - UART RX on GPIO18 for data input (or USB with USE_USB_SERIAL)
  */
+
+// Uncomment to receive data via USB instead of GPIO18
+#define USE_USB_SERIAL
 
 #include <TFT_eSPI.h>
 #include <SPI.h>
@@ -287,7 +290,8 @@ void setup() {
   renderFullGauge();
 
   Serial.println("Water Temperature Gauge Ready");
-  Serial.println("Expecting: WATER:<needle>:<oil_temp>");
+  Serial.println("Format: WATER:<temp_min>:<temp_max>:<temp_actual>:<oil_min>:<oil_max>:<oil_actual>");
+  Serial.println("Example: WATER:100:250:185:150:300:210");
 }
 
 // ============================================================================
@@ -295,6 +299,9 @@ void setup() {
 // ============================================================================
 
 void loop() {
+  static unsigned long lastFpsTime = 0;
+  static int frameCount = 0;
+  
   protocol.update();
 
   if (protocol.hasUpdate()) {
@@ -305,7 +312,15 @@ void loop() {
   if (fabsf(needleValue - prevNeedleValue) > NEEDLE_THRESHOLD) {
     renderFullGauge();
     prevNeedleValue = needleValue;
+    frameCount++;
   } else {
     pushReadoutOnly();
+  }
+  
+  // Print FPS every second
+  if (millis() - lastFpsTime >= 1000) {
+    Serial.printf("FPS: %d\n", frameCount);
+    frameCount = 0;
+    lastFpsTime = millis();
   }
 }

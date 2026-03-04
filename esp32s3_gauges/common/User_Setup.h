@@ -21,7 +21,7 @@
 #define TFT_SCLK 12  // SPI CLK
 #define TFT_CS   10  // Chip select
 #define TFT_DC   9   // Data/Command
-#define TFT_RST  14  // Reset
+#define TFT_RST  8  // Reset
 
 // Optional: backlight control
 // #define TFT_BL   13

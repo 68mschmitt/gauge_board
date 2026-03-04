@@ -1,0 +1,9 @@
+{
+  "additionalFiles": "../..",
+  "compiler.optimization_flags": "-Os",
+  "customBuildProperties": "",
+  "fqbn": "esp32:esp32:esp32s3",
+  "hardwareFolders": "/home/mschmitt/.arduino15/packages/esp32/hardware/esp32/3.3.7,/home/mschmitt/.arduino15/packages/esp32/hardware/esp32/3.3.7",
+  "otherLibrariesFolders": "/home/mschmitt/Arduino/libraries",
+  "sketchLocation": "/home/mschmitt/projects/rp2040-gauge-board/esp32s3_gauges/water_temp_gauge"
+}

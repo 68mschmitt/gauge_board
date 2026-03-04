@@ -1,0 +1,1 @@
+../common/gauge_protocol.h
